@@ -1,0 +1,199 @@
+syntax = "proto3";
+
+package rpc;
+option go_package = "github.com/BoltzEngine/apis/rpc";
+option csharp_namespace = "BoltzEngine.Rpc";
+
+import "apns/apns.proto";
+import "gcm/gcm.proto";
+import "webpush/webpush.proto";
+import "adm/adm.proto";
+
+service BoltzGateway {
+	// Send はMessageを各デバイスへ送信する。
+	// トークン無効など対応の必要なEventが発生したらクライアントへ返す。
+	rpc Send (Message) returns (stream Event);
+
+	// FetchStatistics はmasterサービスと、masterから接続しているslaveの状態を返す。
+	rpc FetchStatistics (StatisticsQuery) returns (MasterStatistics);
+
+	// APNsのフィードバックサービスから無効トークンを取得する。
+	rpc FetchFeedback (apns.Header) returns (stream UnavailableTokenEvent);
+}
+
+// Priority はメッセージの優先順位を表す。
+enum Priority {
+	// 可能な限り早く、デバイスがスリープでも通知する。
+	HIGH	= 0;	// APNs: 10	FCM: high	WebPush: high
+	// バッテリ状況を考慮して通知する。
+	// APNsのcontent-available通知はNORMALで送らなければならない。
+	NORMAL	= 1;	// APNs: 5	FCM: normal	WebPush: normal
+	// WebPushのみ; topic updateなど
+	LOW = 2;	// APNs: 5	FCM: normal	WebPush: low
+	// WebPushのみ; advertisementなど
+	VERY_LOW = 3;	// APNs: 5	FCM: normal	WebPush: very-low
+}
+
+// Message はデバイスに通知するメッセージを表す。
+message Message {
+	// APNs固有の接続情報
+	apns.Header apnsHeader = 1;
+	// FCM固有の接続情報
+	gcm.Header gcmHeader = 2;
+	// WebPush固有の接続情報
+	webpush.Header webpushHeader = 9;
+	// ADM固有の接続情報
+	adm.Header admHeader = 11;
+
+	// 通知対象のデバイストークン
+	// APNsの場合は["1" + (hexエンコードされたトークン)]
+	// FCMの場合は["2" + (FCMの登録ID)]
+	// WebPushの場合は["4" + {"v":1,"endpoint":"(WebPushエンドポイント)","p256dh":"(ブラウザ公開鍵)","auth":"(WebPush乱数)"}],
+	// ADMの場合は["5" + (ADM登録ID)]
+	repeated string tokens = 3;
+	// メッセージ配信の優先度
+	// Priority未定義値の場合は各プラットフォームのデフォルトを使う
+	Priority priority = 4;
+	// メッセージ配信の有効期限
+	uint32 expiration = 5;	// Unix time
+	// メッセージをまとめる文字列(URLセーフな文字を32文字まで)
+	string collapseKey = 12;
+
+	// APNsへ送るJSONペイロード(APNsトークンを含む場合は必須)
+	// JSONのフォーマットはAppleのドキュメントを参照すること
+	string payload = 6;
+	// FCM/ADMへ送るパラメータ(FCM登録ID/ADM登録IDを含む場合は必須)
+	// それぞれの意味はGoogleのドキュメントを参照すること
+	gcm.Parameters parameters = 7;
+	// WebPushへ送るHTTP Body(WebPushトークンを含む場合は必須)
+	// フォーマットは受信アプリの仕様に依存する
+	string body = 10;
+
+	// 1秒あたりの通知数(0以下なら無制限)
+	int32 bandWidth = 8;
+}
+
+// FailureKind は送信失敗の理由を表す。
+enum FailureKind {
+	// 通信不能等の一時的なエラー(再送すれば届く可能性がある)
+	TEMPORARY_ERROR = 0;
+	// 無効なトークンなので次からは使うべきではない
+	INVALID_TOKEN = 1;
+	// 不正なメッセージのため送信したメッセージの確認すること
+	INVALID_PAYLOAD = 2;
+}
+
+// DeliveryFailure は送信失敗したトークンと理由を表す。
+message DeliveryFailure {
+	FailureKind kind = 1;
+	string token = 2;
+	string status = 3; // プラットフォーム固有のエラー文字列(診断用なのでエラー判定に使うべきではない)
+	uint32 timestamp = 4; // 検出された時刻(通常は現在時刻だがINVALID_TOKENの場合は古い場合がある)
+}
+
+// TokenRenewal はプラットフォーム側でのトークン変更を表す。
+message TokenRenewal {
+	// 送信に使ったトークン
+	string recentToken = 1;
+	// 新しいトークン
+	string latestToken = 2;
+}
+
+// Platform は通知サービスを表す。
+enum Platform {
+	UNKNOWN = 0;
+	APNS = 1;
+	GCM = 2;
+	ALT = 3; // 現在未使用
+	WEBPUSH = 4;
+	ADM = 5;
+}
+
+// Event は確認が必要なイベントを表す。
+message Event {
+	// イベントが発生したプラットフォーム
+	Platform platform = 1;
+	// イベント発生の理由
+	oneof event {
+		DeliveryFailure failed = 2;
+		TokenRenewal renewed = 3;
+	}
+}
+
+message StatisticsQuery {
+	// left blank
+}
+
+// MasterStatistics はBoltzEngineマスタの状態をあらわす。
+message MasterStatistics {
+	string version = 1;
+	string compiler = 2;
+	int32 numProcessor = 3; // same as NumCPU
+	int32 numTask = 4; // same as NumGoroutine
+	MemoryStatistics memStatistics = 5;
+
+	// スレーブに対して送信待ちしているリクエスト数
+	int32 numPending = 6;
+	// アドレスをキーとする各スレーブの状態
+	map<string, SlaveStatistics> slaveStatistics = 7;
+}
+
+// SlaveStatistics はBoltzEngineスレーブの状態をあらわす。
+message SlaveStatistics {
+	// Goコンパイラのバージョン
+	string version = 1;
+	// Goコンパイラの名前
+	string compiler = 2;
+	// CPUコア数
+	int32 numProcessor = 3; // same as NumCPU
+	// 実行中のゴルーチン数
+	int32 numTask = 4; // same as NumGoroutine
+	// メモリ状態
+	MemoryStatistics memStatistics = 5;
+
+	// マスタひとつにつき最大いくつの同時リクエストを許可するか
+	int32 maxAgents = 6;
+	// リクエストされた数
+	int32 numTotalRequest = 7;
+	// 現在送信中の端末数
+	int32 numDelivering = 8;
+	// 送信した端末数
+	int32 numDeliveredDevices = 9;
+	// リクエスト開始から終了までの合計時間(Duration)
+	int64 totalExecutionTime = 10;
+	// 最新のリクエスト処理時間(Duration)
+	int64 latestExecutionTime = 11;
+	// SlaveActivityが最後に更新された時間(Unix-time)
+	int64 lastUpdate = 12;
+	// リトライした数
+	int32 retryCount = 13;
+}
+
+// MemoryStatistics はサーバのメモリ状況をあらわす。
+message MemoryStatistics {
+	// 割り当てられているメモリ容量
+	uint64 alloc = 1; // bytes allocated and not yet freed
+	// 割り当てたメモリ容量
+	uint64 totalAlloc = 2; // bytes allocated (even if freed)
+	// システムに確保されたメモリ容量
+	uint64 sys = 3; // bytes obtained from system
+	// mallocによりメモリを割り当てた回数
+	uint64 mallocs = 4; // number of mallocs
+	// freeした回数
+	uint64 frees = 5; // number of frees
+
+	// ヒープに割り当てられているメモリ容量
+	uint64 heapAlloc = 6;
+	// システムに確保されたメモリ容量(ヒープ)
+	uint64 heapSys = 7;
+	// ヒープにあるオブジェクト数
+	uint64 heapObjects = 8;
+}
+
+// UnavailableTokenEvent はアンインストール扱いのトークンをあらわす。
+message UnavailableTokenEvent {
+	// 無効と判断された時間(Unix-time)
+	uint32 timestamp = 1;
+	// 無効トークン
+	string token = 2;
+}

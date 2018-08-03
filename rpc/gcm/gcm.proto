@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package gcm;
+option go_package = "github.com/BoltzEngine/apis/rpc/gcm";
+option csharp_namespace = "BoltzEngine.Rpc.Gcm";
+
+message Header {
+	// FCMリクエストURL
+	string requestURL = 1;
+	// FCM認証サーバキー
+	string serverKey = 2;
+	// Sender ID
+	string senderID = 3;
+	// Do not set to true in production
+	bool insecureSkipVerify = 4;
+}
+
+// Parameters はFCMのリクエストと同じ内容を表す。
+message Parameters {
+	string collapseKey = 1; // masterのcollapseKeyを優先
+	bool delayWhileIdle = 2; // ADMでは未使用
+	bool contentAvailable = 5; // ADMでは未使用
+	bool mutableContent = 6; // ADMでは未使用
+	map<string, string> data = 3;
+	map<string, string> notification = 4; // ADMでは未使用
+}

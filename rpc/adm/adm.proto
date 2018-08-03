@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package adm;
+option go_package = "github.com/BoltzEngine/apis/rpc/adm";
+option csharp_namespace = "BoltzEngine.Rpc.Adm";
+
+message Header {
+	// ADMリクエストURLのオリジン(scheme://host:port)
+	string originURL = 1;
+	// OAuth2の認証URL
+	string tokenURL = 2;
+	// OAuth2クライアントID
+	string clientID = 3;
+	// OAuth2クライアントシークレット
+	string clientSecret = 4;
+	// Do not set to true in production
+	bool insecureSkipVerify = 5;
+}
+
+// Parameters はFCMのリクエストと共通。
+// md5はFCMに存在しないが、
+// メッセージのペイロードはBoltzが組み立てるため、
+// クライアントからMD5を指定することがほぼないため用意していない。

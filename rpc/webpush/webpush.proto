@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package webpush;
+option go_package = "github.com/BoltzEngine/apis/rpc/webpush";
+option csharp_namespace = "BoltzEngine.Rpc.WebPush";
+
+message Header {
+	// WebPush送信者を示すURI(schema must be either mailto or https)
+	string subject = 1;
+	// VAPID生成用の秘密鍵(BASE64url+no padding)
+	string privateKey = 2;
+	// VAPID生成用の公開鍵(BASE64url+no padding)
+	string publicKey = 3;
+	// Do not set to true in production
+	bool insecureSkipVerify = 4;
+}

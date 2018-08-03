@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package apns;
+option go_package = "github.com/BoltzEngine/apis/rpc/apns";
+option csharp_namespace = "BoltzEngine.Rpc.Apns";
+
+message Header {
+	// APNsサービスのアドレス
+	string address = 1;	// hostname:port or https://hostname:port/path/
+	// PEMエンコードされた秘密鍵
+	bytes keyPEMBlock = 2;
+	// PEMエンコードされた証明書
+	bytes certPEMBlock = 3;
+	// Do not set to true in production
+	bool insecureSkipVerify = 4;
+
+	// JWT認証時のIssuer
+	string issuer = 5;
+	// JWT認証時のKey ID
+	string keyID = 6;
+	// JWT認証時のEC P-256秘密鍵
+	string privateKey = 7;
+	// JWT認証時のトピック(e.g. Bundle ID)
+	string topic = 8;
+}
