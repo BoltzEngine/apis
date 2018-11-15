@@ -13,6 +13,8 @@ message Header {
 	string senderID = 3;
 	// Do not set to true in production
 	bool insecureSkipVerify = 4;
+	// Firebaseプロジェクトのサービスアカウント(JSON)
+	string serviceAccount = 5;
 }
 
 // Parameters はFCMのリクエストと同じ内容を表す。

@@ -1,12 +1,69 @@
 // Package gcm implements communication between master and slave for FCM.
 package gcm
 
-import "errors"
+import (
+	"errors"
+	"net/url"
+	"strings"
+)
 
 const (
 	// 1つのメッセージに含められる最大registration idの個数
 	RegIDsMax = 1000
 )
+
+// APIErrorはFCM HTTP v1 APIのエラーをあらわす。
+type APIError struct {
+	Message *Message // オリジナルのメッセージ
+
+	Code        int
+	Status      string
+	Description string
+}
+
+func (e *APIError) ErrorCode() string {
+	switch e.Status {
+	case "NOT_FOUND",
+		"PERMISSION_DENIED",
+		"RESOURCE_EXHAUSTED",
+		"UNAUTHENTICATED",
+		"APNS_AUTH_ERROR",
+		"INTERNAL",
+		"INVALID_ARGUMENT",
+		"SENDER_ID_MISMATCH",
+		"QUOTA_EXCEEDED",
+		"UNAVAILABLE",
+		"UNREGISTERED":
+		return e.Status
+	default:
+		return "INTERNAL"
+	}
+}
+
+var (
+	invalidParamCodes = map[string]struct{}{
+		"PERMISSION_DENIED":  struct{}{},
+		"UNAUTHENTICATED":    struct{}{},
+		"APNS_AUTH_ERROR":    struct{}{},
+		"INVALID_ARGUMENT":   struct{}{},
+		"SENDER_ID_MISMATCH": struct{}{},
+	}
+
+	invalidTokenCodes = map[string]struct{}{
+		"NOT_FOUND":    struct{}{},
+		"UNREGISTERED": struct{}{},
+	}
+)
+
+func (e *APIError) Temporary() bool {
+	_, invalidParam := invalidParamCodes[e.ErrorCode()]
+	return !e.BadRegID() && !invalidParam
+}
+
+func (e *APIError) BadRegID() bool {
+	_, ok := invalidTokenCodes[e.ErrorCode()]
+	return ok
+}
 
 // FailureはFCMサーバから発生されるエラーをあらわす。
 type Failure string
@@ -125,10 +182,14 @@ type Message struct {
 
 // CredentialはFCMサーバにアクセスする資格情報をあらわす。
 type Credential struct {
+	// APIが有効なservice-account.jsonの内容
+	ServiceAccount string
+
 	// FCMサーバキー
 	ServerKey string
 	// センダーID
 	SenderID string
+
 	// (テスト用)サーバ証明書の正当性を確認をしない
 	InsecureSkipVerify bool
 }
@@ -146,11 +207,13 @@ type Request struct {
 }
 
 // FailedMessageは送信失敗したメッセージとその理由をあらわす。
-// 必ず、ErrorString、Detail、Signalはどれか1つだけセットされる。
+// 必ず、ErrorString、APIError、Detail、Signalはどれか1つだけセットされる。
 // なのでDetailまたはSignalを判定し、nilならErrorStringをエラーの理由として扱うこと。
 type FailedMessage struct {
 	// FCMとは関係のない場所で発生したエラー(例えば"no such host")
 	ErrorString string
+	// FCM HTTP v1 APIプロトコルにおけるエラーの場合にセット
+	Error *APIError
 	// FCM-HTTPプロトコルにおけるエラーの場合にセット
 	Detail *ResponseBody
 	// FCM-XMPPプロトコルにおけるエラーまたは登録ID更新の場合にセット
@@ -198,4 +261,24 @@ type Response struct {
 	// 送信失敗したメッセージと理由。
 	// すべて成功した場合は空の配列。
 	FailedMessages []*FailedMessage
+}
+
+// ProtocolVersionはaddrで利用するプロトコルを判断して返す。
+// >=1: HTTP v1 API protocol or higher.
+// ==0: Legacy HTTP protocol.
+// <0: Legacy XMPP protocol.
+func ProtocolVersion(addr string) int {
+	u, err := url.Parse(addr)
+	if err != nil {
+		return -1
+	}
+	switch u.Scheme {
+	case "http", "https":
+		if strings.Contains(u.Path, "/v1/") {
+			return 1
+		}
+		return 0
+	default:
+		return -1
+	}
 }
