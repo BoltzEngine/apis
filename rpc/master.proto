@@ -101,9 +101,11 @@ message TokenRenewal {
 
 // Platform は通知サービスを表す。
 enum Platform {
+	option allow_alias = true;
 	UNKNOWN = 0;
 	APNS = 1;
 	GCM = 2;
+	FCM = 2;
 	ALT = 3; // 現在未使用
 	WEBPUSH = 4;
 	ADM = 5;

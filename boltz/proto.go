@@ -11,6 +11,8 @@ type MasterActivity struct {
 	PendingCount int
 	// アドレスをキーとする各スレーブの状態。
 	SlaveActivities map[string]SlaveActivity
+	// ライセンスの期限
+	Expiration time.Time
 }
 
 // SlaveActivity represents state of BoltzEngine slave service.
