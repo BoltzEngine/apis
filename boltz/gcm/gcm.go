@@ -263,22 +263,38 @@ type Response struct {
 	FailedMessages []*FailedMessage
 }
 
-// ProtocolVersionはaddrで利用するプロトコルを判断して返す。
-// >=1: HTTP v1 API protocol or higher.
-// ==0: Legacy HTTP protocol.
-// <0: Legacy XMPP protocol.
+const (
+	GcmEndpoint = iota - 2
+	FcmEndpointError
+	FcmXmppApi
+	FcmLegacyHttpApi
+	FcmHttpV1Api
+)
+
+// ProtocolVersion determines the protocol to be used by the argument addr.
+//  - HTTP v1 API protocol or higher. : FcmHttpV1Api
+//  - Legacy HTTP protocol.           : FcmLegacyHttpApi
+//  - Legacy XMPP protocol.           : FcmXmppApi
+//  - Using GCM endpoint.             : FcmEndpointError [error]
+//  - Incorrect endpoint.             : GcmEndpoint      [error]
 func ProtocolVersion(addr string) int {
-	u, err := url.Parse(addr)
-	if err != nil {
-		return -1
-	}
-	switch u.Scheme {
-	case "http", "https":
-		if strings.Contains(u.Path, "/v1/") {
-			return 1
+	if u, err := url.Parse(addr); err != nil {
+		return FcmEndpointError
+	} else {
+		switch {
+		case len(u.Host) == 0 && strings.Contains(u.Scheme, "fcm"),
+			(u.Scheme == "http" || u.Scheme == "https") && strings.Contains(u.Host, "fcm"):
+			switch {
+			case strings.Contains(u.Path, "/fcm/") && len(u.Opaque) == 0:
+				return FcmLegacyHttpApi
+			case strings.Contains(u.Path, "/v1/") && len(u.Opaque) == 0:
+				return FcmHttpV1Api
+			case strings.Contains(u.Scheme, "xmpp") && len(u.Opaque) > 0:
+				return FcmXmppApi
+			}
+		case strings.Contains(u.Scheme, "gcm"), strings.Contains(u.Host, "gcm"):
+			return GcmEndpoint
 		}
-		return 0
-	default:
-		return -1
 	}
+	return FcmEndpointError
 }
