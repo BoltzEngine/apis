@@ -10,6 +10,27 @@
 
 本リポジトリの rpc/ 階層以下にある proto ファイルを protoc コマンドで各言語のクライアントコードに変換してご利用いただけます。
 
+### Go から gRPC でご利用の場合
+
+1. [protoc](https://github.com/protocolbuffers/protobuf/releases) をインストールしてください。
+開発環境が Mac の場合は `brew install protobuf` をご利用頂けます。
+開発環境が Debian / Ubuntu の方は `apt-get install protobuf-compiler` をご利用頂けます。
+2. `protoc-gen-go` をインストールしてください。 `go get -u github.com/golang/protobuf/protoc-gen-go` でインストール可能です。
+3. `make` を実行すると、 `*.pb.go` ファイルが最新に更新されます。
+
+#### ProtoPackageIsVersion3 のエラーが出る場合
+v3.2.0 より、リポジトリに一緒に登録される *.pg.go ファイルたちは Protocol Buffers v3.0 で生成されています。
+こちらを用いると
+
+```
+xxxxx.pb.go:xx:xx: undefined: proto.ProtoPackageIsVersion3
+```
+
+のようなエラーが出力される場合があります。
+その場合は、以下の Issue が参考になるかも知れません。
+
+* [Rev of proto-gen-go to ProtoPackageIsVersion3 causing breakage](https://github.com/golang/protobuf/issues/763)
+
 ### Go から net/rpc 接続でご利用の場合
 
 [![GoDoc](https://godoc.org/github.com/BoltzEngine/apis/boltz?status.svg)](https://godoc.org/github.com/BoltzEngine/apis/boltz)

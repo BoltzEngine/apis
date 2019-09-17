@@ -9,8 +9,13 @@ import (
 )
 
 const (
-	PrioritySentImmidiately   uint8 = 10
+	PrioritySentImmediately   uint8 = 10
 	PrioritySentAtPowerSaving       = 5
+)
+
+const (
+	PushTypeAlert      = "alert"
+	PushTypeBackground = "background"
 )
 
 type Status uint8
@@ -97,9 +102,11 @@ type Message struct {
 	Priority uint8
 
 	// APNs HTTP/2 only
-
 	Topic      string
 	CollapseID string
+
+	// for iOS 13~, watchOS 6~ (APNs HTTP/2 only
+	PushType string
 }
 
 // FailedMessageは送信失敗したメッセージとその理由をあらわす。

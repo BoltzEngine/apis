@@ -22,4 +22,7 @@ message Header {
 	string privateKey = 7;
 	// JWT認証時のトピック(e.g. Bundle ID)
 	string topic = 8;
+
+	// apns-push-type ('alert' / 'background'; default 'alert')
+	string pushType = 9;
 }
