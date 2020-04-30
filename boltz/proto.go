@@ -34,4 +34,6 @@ type SlaveActivity struct {
 	LastUpdate time.Time
 	// リトライした数
 	RetryCount int
+	// number of failed
+	FailedCount int
 }
