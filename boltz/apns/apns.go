@@ -3,7 +3,6 @@ package apns
 
 import (
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
 )
@@ -14,8 +13,12 @@ const (
 )
 
 const (
-	PushTypeAlert      = "alert"
-	PushTypeBackground = "background"
+	PushTypeAlert        = "alert"
+	PushTypeBackground   = "background"
+	PushTypeVoIP         = "voip"
+	PushTypeComplication = "complication"
+	PushTypeFileProvider = "fileprovider"
+	PushTypeMdm          = "mdm"
 )
 
 type Status uint8
@@ -148,15 +151,15 @@ func (e *ProtocolError) Error() string {
 	}
 }
 
-func (e *ProtocolError) InvalidToken() bool {
-	switch e.StatusCode {
-	case 0: // Legacy
-		return e.Status == InvalidToken
-	case http.StatusNotFound, http.StatusGone:
-		return true
-	default:
-		return false
+func (e *ProtocolError) InvalidToken() (ret bool) {
+	if e.StatusCode > 0 {
+		// APNs + HTTP/2
+		ret = isInvalidToken(e.StatusCode, e.Reason)
+	} else {
+		// Legacy
+		ret = e.Status == InvalidToken
 	}
+	return
 }
 
 func (e *ProtocolError) Timestamp() time.Time {
